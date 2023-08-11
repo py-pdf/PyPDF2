@@ -1589,3 +1589,43 @@ def test_missing_info():
 
     writer = PdfWriter(clone_from=reader)
     assert len(writer.pages) == len(reader.pages)
+
+
+@pytest.mark.enable_socket()
+def test_germanfields():
+    """Cf #2035"""
+    url = "https://github.com/py-pdf/pypdf/files/12194195/test.pdf"
+    name = "germanfields.pdf"
+    reader = PdfReader(BytesIO(get_pdf_from_url(url, name=name)))
+    writer = PdfWriter(clone_from=reader)
+    form_fields = {"Text Box 1": "test æ ø å"}
+    writer.update_page_form_field_values(
+        writer.pages[0], form_fields, auto_regenerate=False
+    )
+    bytes_stream = BytesIO()
+    writer.write(bytes_stream)
+    bytes_stream.seek(0)
+    reader2 = PdfReader(bytes_stream)
+    assert (
+        b"test \xe6 \xf8 \xe5"
+        in reader2.get_fields()["Text Box 1"]
+        .indirect_reference.get_object()["/AP"]["/N"]
+        .get_data()
+    )
+
+
+def test_selfont():
+    writer = PdfWriter(clone_from=RESOURCE_ROOT / "FormTestFromOo.pdf")
+    writer.update_page_form_field_values(
+        writer.pages[0],
+        {"Text1": ("Text", "", 5), "Text2": ("Text", "/F1", 15)},
+        auto_regenerate=False,
+    )
+    assert (
+        b"/F3 5 Tf"
+        in writer.pages[0]["/Annots"][1].get_object()["/AP"]["/N"].get_data()
+    )
+    assert (
+        b"/F1 15 Tf"
+        in writer.pages[0]["/Annots"][2].get_object()["/AP"]["/N"].get_data()
+    )

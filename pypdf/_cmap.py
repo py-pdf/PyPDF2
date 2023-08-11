@@ -17,15 +17,36 @@ def build_char_map(
     Determine information about a font.
 
     Args:
-        font_name:
-        space_width:
-        obj:
+        font_name: font name as a string
+        space_width: default space width if no data is found.
+        obj: XObject or Page where you can find a /Resource dictionary
 
     Returns:
-        Font sub-type, space_width/2, encoding, map character-map, font-dictionary.
+        Font sub-type, space_width criteria (50% of width), encoding, map character-map, font-dictionary.
         The font-dictionary itself is suitable for the curious.
     """
     ft: DictionaryObject = obj["/Resources"]["/Font"][font_name]  # type: ignore
+    font_subtype, font_halfspace, font_encoding, font_map = build_char_map_from_dict(
+        space_width, ft
+    )
+    return font_subtype, font_halfspace, font_encoding, font_map, ft
+
+
+def build_char_map_from_dict(
+    space_width: float, ft: DictionaryObject
+) -> Tuple[str, float, Union[str, Dict[int, str]], Dict]:
+    """
+    Determine information about a font.
+
+    Args:
+        space_width: default space with if no data found
+             (normally half the width of a character).
+        ft: Font Dictionary
+
+    Returns:
+        Font sub-type, space_width criteria(50% of width), encoding, map character-map.
+        The font-dictionary itself is suitable for the curious.
+    """
     font_type: str = cast(str, ft["/Subtype"])
 
     space_code = 32
@@ -73,7 +94,6 @@ def build_char_map(
         encoding,
         # https://github.com/python/mypy/issues/4374
         map_dict,
-        ft,
     )
 
 

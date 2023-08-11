@@ -54,6 +54,7 @@ from typing import (
     cast,
 )
 
+from ._cmap import build_char_map_from_dict
 from ._encryption import EncryptAlgorithm, Encryption
 from ._page import PageObject, _VirtualList
 from ._page_labels import nums_clear_range, nums_insert, nums_next
@@ -831,7 +832,9 @@ class PdfWriter:
                 return qualified_parent + "." + cast(str, parent["/T"])
         return cast(str, parent["/T"])
 
-    def _update_text_field(self, field: DictionaryObject) -> None:
+    def _update_text_field(
+        self, field: DictionaryObject, fontname: str = "", fontsize: float = -1
+    ) -> None:
         # Calculate rectangle dimensions
         _rct = cast(RectangleObject, field[AA.Rect])
         rct = RectangleObject((0, 0, _rct[2] - _rct[0], _rct[3] - _rct[1]))
@@ -839,13 +842,61 @@ class PdfWriter:
         # Extract font information
         da = cast(str, field[AA.DA])
         font_properties = da.replace("\n", " ").replace("\r", " ").split(" ")
-        font_name = font_properties[font_properties.index("Tf") - 2]
-        font_height = float(font_properties[font_properties.index("Tf") - 1])
-        if font_height == 0:
-            font_height = rct.height - 2
+        font_name = (
+            fontname if fontname else font_properties[font_properties.index("Tf") - 2]
+        )
+        font_height = (
+            fontsize
+            if fontsize >= 0
+            else float(font_properties[font_properties.index("Tf") - 1])
+        )
+        if fontname or fontsize >= 0 or font_height == 0:
+            if fontname:
+                font_properties[font_properties.index("Tf") - 2] = fontname
+            if font_height == 0:
+                font_height = rct.height - 2
             font_properties[font_properties.index("Tf") - 1] = str(font_height)
             da = " ".join(font_properties)
         y_offset = rct.height - 1 - font_height
+
+        # Retrieve font information from local DR ...
+        dr: Any = cast(
+            DictionaryObject,
+            cast(DictionaryObject, field.get("/DR", DictionaryObject())).get_object(),
+        )
+        dr = dr.get("/Font", DictionaryObject()).get_object()
+        if font_name not in dr:
+            # ...or AcroForm dictionary
+            dr = cast(
+                dict,
+                cast(DictionaryObject, self._root_object["/AcroForm"]).get("/DR", {}),
+            )
+            if isinstance(dr, IndirectObject):  # pragma: no cover
+                dr = dr.get_object()
+            dr = dr.get("/Font", DictionaryObject()).get_object()
+        font_res = dr.get(font_name)
+        if font_res is not None:
+            font_res = cast(DictionaryObject, font_res.get_object())
+            font_subtype, _, font_encoding, font_map = build_char_map_from_dict(
+                200, font_res
+            )
+            try:  # get rid of width stored in -1 key
+                del font_map[-1]
+            except KeyError:
+                pass
+            font_full_rev: Dict[str, bytes]
+            if isinstance(font_encoding, str):
+                font_full_rev = {
+                    v: k.encode(font_encoding) for k, v in font_map.items()
+                }
+            else:
+                font_full_rev = {v: bytes((k,)) for k, v in font_encoding.items()}
+                font_encoding_rev = {v: bytes((k,)) for k, v in font_encoding.items()}
+                for kk, v in font_map.items():
+                    font_full_rev[v] = font_encoding_rev.get(kk, kk)
+        else:
+            logger_warning(f"can not find font dictionary for {font_name}", __name__)
+            font_full_rev = {}
 
         # Retrieve field text and selected values
         field_flags = field.get(FA.Ff, 0)
@@ -872,7 +923,16 @@ class PdfWriter:
             else:
                 # Td is a relative translation
                 ap_stream += f"0 {- font_height * 1.4} Td\n".encode()
-            ap_stream += b"(" + str(line).encode("UTF-8") + b") Tj\n"
+            enc_line: List[bytes] = [
+                font_full_rev.get(c, c.encode("utf-16-be")) for c in line
+            ]
+            if any(len(c) >= 2 for c in enc_line):
+                ap_stream += b"<" + (b"".join(enc_line)).hex().encode() + b"> Tj\n"
+            else:
+                enc = b"".join(enc_line)
+                # for x in range(32):
+                #    enc = enc.replace(bytes((x,)),b"\%03o"%x)
+                ap_stream += b"(" + enc + b") Tj\n"
         ap_stream += b"ET\nQ\nEMC\nQ\n"
 
         # Create appearance dictionary
@@ -886,22 +946,16 @@ class PdfWriter:
             }
         )
 
-        # Retrieve font information from AcroForm dictionary
-        dr: Any = cast(
-            dict, cast(DictionaryObject, self._root_object["/AcroForm"]).get("/DR", {})
-        )
-        if isinstance(dr, IndirectObject):
-            dr = dr.get_object()
-        dr = dr.get("/Font", {})
-        if isinstance(dr, IndirectObject):
-            dr = dr.get_object()
-
         # Update Resources with font information if necessary
-        if font_name in dr:
+        if font_res is not None:
             dct[NameObject("/Resources")] = DictionaryObject(
                 {
                     NameObject("/Font"): DictionaryObject(
-                        {NameObject(font_name): dr[font_name].indirect_reference}
+                        {
+                            NameObject(font_name): getattr(
+                                font_res, "indirect_reference", font_res
+                            )
+                        }
                     )
                 }
             )
@@ -934,8 +988,14 @@ class PdfWriter:
         Args:
             page: Page reference from PDF writer where the
                 annotations and field data will be updated.
-            fields: a Python dictionary of field names (/T) and text
-                values (/V)
+            fields: a Python dictionary of :
+                a) field names (/T) as keys and  text values (/V) as value
+                b) field names (/T) as keys and  list of text values (/V)
+                       for multiple choice list
+                c) field names (/T) as keys and  tuple of :
+                       * text values (/V)
+                       * font name (must exist)
+                       * font size (0 for autosize)
             flags: An integer (0 to 7). The first bit sets ReadOnly, the
                 second bit sets Required, the third bit sets NoExport. See
                 PDF Reference Table 8.70 for details.
@@ -971,6 +1031,10 @@ class PdfWriter:
                     if isinstance(value, list):
                         lst = ArrayObject(TextStringObject(v) for v in value)
                         writer_annot[NameObject(FA.V)] = lst
+                    elif isinstance(value, tuple):
+                        writer_annot[NameObject(FA.V)] = TextStringObject(
+                            value[0],
+                        )
                     else:
                         writer_annot[NameObject(FA.V)] = TextStringObject(value)
                     if writer_annot.get(FA.FT) in ("/Btn"):
@@ -992,7 +1056,10 @@ class PdfWriter:
                                 if AA.DA in f:
                                     da = f[AA.DA]
                             writer_annot[NameObject(AA.DA)] = da
-                        self._update_text_field(writer_annot)
+                        if isinstance(value, tuple):
+                            self._update_text_field(writer_annot, value[1], value[2])
+                        else:
+                            self._update_text_field(writer_annot)
                     elif writer_annot.get(FA.FT) == "/Sig":
                         # signature
                         logger_warning("Signature forms not implemented yet", __name__)
