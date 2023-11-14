@@ -1466,3 +1466,10 @@ def test_xyz_with_missing_param():
     assert reader.outline[0]["/Top"] == 0
     assert reader.outline[1]["/Left"] == 0
     assert reader.outline[0]["/Top"] == 0
+
+
+def test_embedded_files_no_ef():
+    reader = PdfReader(RESOURCE_ROOT / "crazyones.pdf")
+    reader.trailer["/Root"][NameObject("/Names")] = DictionaryObject()
+    assert reader.attachments_names == []
+    assert reader.attachments == {}

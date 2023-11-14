@@ -46,15 +46,20 @@ from ._base import (
     encode_pdfdocencoding,
 )
 from ._data_structures import (
+    PREFERED_ATTACHMENT,
     ArrayObject,
+    AttachmentBytes,
+    AttachmentBytesDictionary,
     ContentStream,
     DecodedStreamObject,
     Destination,
     DictionaryObject,
     EncodedStreamObject,
     Field,
+    NameTree,
     StreamObject,
     TreeObject,
+    get_from_file_specification,
     read_object,
 )
 from ._fit import Fit
@@ -435,6 +440,8 @@ __all__ = [
     "PAGE_FIT",
     # Data structures
     "ArrayObject",
+    "AttachmentBytes",
+    "AttachmentBytesDictionary",
     "DictionaryObject",
     "TreeObject",
     "StreamObject",
@@ -444,6 +451,9 @@ __all__ = [
     "RectangleObject",
     "Field",
     "Destination",
+    "NameTree",
+    "PREFERED_ATTACHMENT",
+    "get_from_file_specification",
     "ViewerPreferences",
     # --- More specific stuff
     # Outline

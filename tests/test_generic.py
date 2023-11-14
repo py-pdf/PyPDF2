@@ -19,6 +19,7 @@ from pypdf.generic import (
     FloatObject,
     IndirectObject,
     NameObject,
+    NameTree,
     NullObject,
     NumberObject,
     OutlineItem,
@@ -1235,3 +1236,18 @@ def test_encodedstream_set_data():
     assert cc["/Filter"] == ["/FlateDecode", "/FlateDecode", "/FlateDecode"]
     assert str(cc["/DecodeParms"]) == "[NullObject, NullObject, NullObject]"
     assert cc[NameObject("/Test")] == "/MyTest"
+
+
+def test_replace_object():
+    writer = PdfWriter(clone_from=RESOURCE_ROOT / "crazyones.pdf")
+    i = writer.pages[0]["/Contents"][0].idnum
+    writer.pages[0]["/Contents"][0].replace_object(NullObject())
+    assert writer.pages[0]["/Contents"][0].idnum == i
+    assert isinstance(writer.pages[0]["/Contents"][0].get_object(), NullObject)
+
+
+def test_nametree():
+    writer = PdfWriter(clone_from=RESOURCE_ROOT / "crazyones.pdf")
+    with pytest.raises(ValueError):
+        NameTree(writer._root_object)
+    writer._root_object[NameObject("/Names")] = DictionaryObject()

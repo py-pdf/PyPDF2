@@ -314,6 +314,18 @@ class IndirectObject(PdfObject):
             return None
         return obj.get_object()
 
+    def replace_object(self, obj: "PdfObject") -> None:
+        """
+        Replace the pointed object with obj
+        Only applies to IndirectObjects within a PdfWriter
+        """
+        obj = cast("PdfObject", obj.get_object())
+        pdf = self.pdf
+        if not hasattr(pdf, "_replace_object"):
+            raise TypeError("Trying to replace Object in a non PdfWriter")
+        pdf._replace_object(self.idnum, obj)
+        obj.indirect_reference = self
+
     def __repr__(self) -> str:
         return f"IndirectObject({self.idnum!r}, {self.generation!r}, {id(self.pdf)})"
 

@@ -37,10 +37,11 @@ from typing import (
     Callable,
     Dict,
     Iterable,
+    Iterator,
     List,
+    Mapping,
     Optional,
     Sequence,
-    Set,
     Tuple,
     Union,
     cast,
@@ -188,7 +189,6 @@ class DictionaryObject(dict, PdfObject):
         except Exception:
             pass
 
-        visited: Set[Tuple[int, int]] = set()  # (idnum, generation)
         d__ = cast(
             "DictionaryObject",
             self._reference_clone(self.__class__(), pdf_dest, force_duplicate),
@@ -196,7 +196,7 @@ class DictionaryObject(dict, PdfObject):
         if ignore_fields is None:
             ignore_fields = []
         if len(d__.keys()) == 0:
-            d__._clone(self, pdf_dest, force_duplicate, ignore_fields, visited)
+            d__._clone(self, pdf_dest, force_duplicate, ignore_fields)
         return d__
 
     def _clone(
@@ -205,7 +205,6 @@ class DictionaryObject(dict, PdfObject):
         pdf_dest: PdfWriterProtocol,
         force_duplicate: bool,
         ignore_fields: Optional[Sequence[Union[str, int]]],
-        visited: Set[Tuple[int, int]],  # (idnum, generation)
     ) -> None:
         """
         Update the object from src.
@@ -273,14 +272,6 @@ class DictionaryObject(dict, PdfObject):
                                     cur_obj.__class__(), pdf_dest, force_duplicate
                                 ),
                             )
-                            # check to see if we've previously processed our item
-                            if clon.indirect_reference is not None:
-                                idnum = clon.indirect_reference.idnum
-                                generation = clon.indirect_reference.generation
-                                if (idnum, generation) in visited:
-                                    cur_obj = None
-                                    break
-                                visited.add((idnum, generation))
                             objs.append((cur_obj, clon))
                             assert prev_obj is not None
                             prev_obj[NameObject(k)] = clon.indirect_reference
@@ -293,9 +284,7 @@ class DictionaryObject(dict, PdfObject):
                             except Exception:
                                 cur_obj = None
                         for s, c in objs:
-                            c._clone(
-                                s, pdf_dest, force_duplicate, ignore_fields, visited
-                            )
+                            c._clone(s, pdf_dest, force_duplicate, ignore_fields)
 
         for k, v in src.items():
             if k not in ignore_fields:
@@ -811,7 +800,6 @@ class StreamObject(DictionaryObject):
         pdf_dest: PdfWriterProtocol,
         force_duplicate: bool,
         ignore_fields: Optional[Sequence[Union[str, int]]],
-        visited: Set[Tuple[int, int]],
     ) -> None:
         """
         Update the object from src.
@@ -834,7 +822,7 @@ class StreamObject(DictionaryObject):
                 )
         except Exception:
             pass
-        super()._clone(src, pdf_dest, force_duplicate, ignore_fields, visited)
+        super()._clone(src, pdf_dest, force_duplicate, ignore_fields)
 
     def get_data(self) -> Union[bytes, str]:
         return self._data
@@ -1062,7 +1050,6 @@ class ContentStream(DecodedStreamObject):
         except Exception:
             pass
 
-        visited: Set[Tuple[int, int]] = set()
         d__ = cast(
             "ContentStream",
             self._reference_clone(
@@ -1071,7 +1058,7 @@ class ContentStream(DecodedStreamObject):
         )
         if ignore_fields is None:
             ignore_fields = []
-        d__._clone(self, pdf_dest, force_duplicate, ignore_fields, visited)
+        d__._clone(self, pdf_dest, force_duplicate, ignore_fields)
         return d__
 
     def _clone(
@@ -1080,7 +1067,6 @@ class ContentStream(DecodedStreamObject):
         pdf_dest: PdfWriterProtocol,
         force_duplicate: bool,
         ignore_fields: Optional[Sequence[Union[str, int]]],
-        visited: Set[Tuple[int, int]],
     ) -> None:
         """
         Update the object from src.
@@ -1097,7 +1083,7 @@ class ContentStream(DecodedStreamObject):
         self._operations = list(src_cs._operations)
         self.forced_encoding = src_cs.forced_encoding
         # no need to call DictionaryObjection or anything
-        # like super(DictionaryObject,self)._clone(src, pdf_dest, force_duplicate, ignore_fields, visited)
+        # like super(DictionaryObject,self)._clone(src, pdf_dest, force_duplicate, ignore_fields)
 
     def _parse_content_stream(self, stream: StreamType) -> None:
         # 7.8.2 Content Streams
@@ -1465,6 +1451,460 @@ class Field(TreeObject):
         """
         deprecation_with_replacement("additionalActions", "additional_actions", "3.0.0")
         return self.additional_actions
+
+
+class AttachmentBytes(bytes):
+    """Extension of bytes class, adding File Spefication dedicated properties"""
+
+    source_object: Optional[IndirectObject] = None
+    """
+    Pointer to the File Specification entry associated ;
+        None, if created from a bytes or StreamObject
+    """
+    within_page: Optional[IndirectObject] = None
+    """
+    Page where the File Spefication is referenced, else None
+    This is relevant only for file attachement annotations
+    note : this property should be initialized manually out of the constructor
+    """
+
+    def __new__(
+        cls,
+        src: Optional[
+            Union[bytes, IndirectObject, StreamObject, DictionaryObject]
+        ] = None,
+    ) -> "AttachmentBytes":
+        """
+        Object Constructor.
+
+        Args:
+            src [DictionaryObject] : FileSpecification Object to populate the new object
+            src [bytes/StreamObject] : bytes/StreamObject(EmbeddedFile) to extract the stream
+                to initialize (partially the object)
+            src [IndirectObject] : Pointer to the DictionaryObject/StreamObject for init
+            src [None] : similar to src = b""
+        """
+        inp: Optional[IndirectObject] = None
+        obj: Any = src
+        v: Union[str, bytes]
+        if isinstance(obj, IndirectObject):
+            obj = obj.get_object()
+        if isinstance(obj, bytes):
+            v = obj
+        elif isinstance(obj, StreamObject):
+            v = obj.get_data()
+        elif isinstance(obj, DictionaryObject) and "/EF" in obj:
+            inp = obj.indirect_reference
+            o = cast(DictionaryObject, obj["/EF"])
+            o = cast(StreamObject, get_from_file_specification(o).get_object())
+            v = o.get_data()
+        else:
+            v = b""
+        if isinstance(v, str):
+            v = v.encode()
+        out = bytes.__new__(cls, v)
+        if inp is None:
+            out.source_object = None
+        else:
+            out.source_object = inp.indirect_reference
+        out.within_page = None  # has to be set by program
+        return out
+
+    @property
+    def name(self) -> Optional[str]:
+        """Returns the (best) name from the File Specification Object else None"""
+        o: Any = self.source_object
+        if o is None:
+            return None
+        o = cast(DictionaryObject, o.get_object())
+        return cast(str, get_from_file_specification(o))
+
+    def list_rf_names(self) -> List[str]:
+        """
+        Returns:
+            List of filenames store in /RF fields;
+            Empty list if no /RF field exists
+
+        Note:
+            does not contains "" entry (for EF)
+        """
+        o: Any = self.source_object
+        if o is None:
+            return []
+        o = cast(DictionaryObject, o.get_object())
+        if "/RF" in o:
+            o = cast(DictionaryObject, o["/RF"])
+            o = cast(DictionaryObject, get_from_file_specification(o))
+            try:
+                lst = [o[i] for i in range(0, len(o), 2)]
+                return lst
+            except ValueError:
+                return []
+        else:
+            return []
+
+    def get_embeddedfile(self, subfile: str = "") -> Optional[StreamObject]:
+        """
+        Returns the EmbeddedFile(Stream Object) containing the data bytes
+        Args:
+            subfile: filename of the EmbeddedFile to be returned;
+                     "" returns the EmbeddedFile from the /EF field
+        Returns:
+            StreamObject
+
+        Note:
+            o == o.get_embeddedfile("").get_data()
+        """
+        o: Any = self.source_object
+        if o is None:
+            return None
+        o = cast(DictionaryObject, o.get_object())
+        if subfile == "":
+            o = cast(DictionaryObject, o["/EF"])
+            return cast(StreamObject, get_from_file_specification(o).get_object())
+        elif "/RF" in o:
+            o = cast(DictionaryObject, o["/RF"])
+            o = cast(DictionaryObject, get_from_file_specification(o))
+            try:
+                i = o.index(subfile)
+                return cast(StreamObject, o[i + 1].get_object())
+            except ValueError:
+                return None
+        else:
+            return None
+
+    @property
+    def all_files(self) -> Dict[str, bytes]:
+        """
+        Returns:
+            a dictionary filename/data bytes;
+            {} if the object is not assocatied with a File Spefication.
+
+        Note:
+            the results contains also the /EF stored behin "" key
+        """
+        o: Any = self.source_object
+        if o is None:
+            return {}
+        o = cast(DictionaryObject, o.get_object())
+        out: Dict[str, bytes] = {}
+        o = cast(DictionaryObject, o["/EF"])
+        v = cast(StreamObject, get_from_file_specification(o)).get_data()
+        if isinstance(v, str):
+            v = v.encode()
+        out[""] = v
+        if "/RF" in o:
+            o = cast(DictionaryObject, o["/RF"])
+            a = cast(ArrayObject, get_from_file_specification(o))
+            try:
+                for i in range(0, len(a), 2):
+                    v = cast(StreamObject, a[i + 1].get_object()).get_data()
+                    if isinstance(v, str):
+                        v = v.encode()
+                    out[a[i]] = v
+                return out
+            except ValueError as exc:
+                logger_warning(exc.__repr__(), __name__)
+                return out
+        else:
+            return out
+
+
+class NameTree(DictionaryObject):
+    """
+    Name Tree Structure
+    Allow to list, get and set objects In a Name Tree
+    """
+
+    def __init__(self, obj: Optional[PdfObject] = None) -> None:
+        DictionaryObject.__init__(self)
+        if obj is None:
+            self[NameObject("/Names")] = ArrayObject()
+            return
+        if not isinstance(obj, DictionaryObject) or all(
+            x not in obj for x in ("/Names", "/Kids")
+        ):
+            raise ValueError("source object is not a valid source object")
+        self.update(obj)
+        if hasattr(obj, "indirect_reference"):
+            self.indirect_reference = obj.indirect_reference
+
+    def list_keys(self) -> List[str]:
+        """
+        Provides the list of keys of the items in the Name Tree
+
+        Returns:
+            List of str keys
+        """
+
+        def _list(o: Optional[PdfObject]) -> List[str]:
+            if o is None:
+                return []
+            o = cast(DictionaryObject, o)
+            _l = o.get("/Names", None)
+            a = o.get("/Kids", None)
+            _l = _l.get_object() if _l else []
+            a = a.get_object() if a else []
+            ll = [v for v in _l if isinstance(v, str)]  # and v not in ll:
+            for x in a:
+                ll.extend(_list(x.get_object()))
+                # for v in _list(x.get_object()):
+                # if v not in ll:
+                #    ll.append(v)
+            return ll
+
+        _l = _list(self)
+        _l.sort()
+        return _l
+
+    def list_items(self) -> Mapping[str, List[PdfObject]]:
+        """
+        Provides the Name Tree Entries as a dictionary
+
+        Returns:
+            dictionary of objects
+        """
+
+        def _list(
+            o: Optional[PdfObject], lout: List[Tuple[str, List[PdfObject]]]
+        ) -> List[Tuple[str, List[PdfObject]]]:
+            def _append_with_dup(
+                ll: List[Tuple[str, Any]], _l: List[Tuple[str, Any]]
+            ) -> None:
+                for k, v in _l:
+                    try:
+                        i = tuple(x[0] for x in ll).index(k)
+                        ll[i][1].append(v)
+                    except ValueError:
+                        ll.append((k, [v]))
+
+            if o is None:
+                return lout
+            o = cast(DictionaryObject, o)
+            _l = o.get("/Names", None)
+            a = o.get("/Kids", None)
+            _l = _l.get_object() if _l else []
+            a = a.get_object() if a else []
+            _l = [
+                (v, None if isinstance(_l[i + 1], str) else _l[i + 1])
+                for i, v in enumerate(_l)
+                if isinstance(v, str)
+            ]
+            # to handle duplicates
+            _append_with_dup(lout, _l)
+            for x in a:
+                # _append_with_dup(lout, _list(x.get_object(),lout))
+                _list(x.get_object(), lout)
+            return lout
+
+        _l: List[Tuple[str, List[PdfObject]]] = []
+        _list(self, _l)
+        return dict(_l)
+
+    def list_get(self, key: str) -> Optional[PdfObject]:
+        """
+        Get the entry from the Name Tree
+
+        Args:
+            key: searched entry
+
+        Returns:
+            matching PdfObject; None i
+        attributeEntries as a dictionary
+        """
+
+        def _get(key: str, o: Optional[PdfObject]) -> Optional[PdfObject]:
+            if o is None:
+                return None
+            o = cast(DictionaryObject, o)
+            _l = o.get("/Names", None)
+            a = o.get("/Kids", None)
+            _l = _l.get_object() if _l else []
+            a = a.get_object() if a else []
+            for i, x in enumerate(_l):
+                if x == key:
+                    return _l[i + 1]
+            for x in a:
+                v = _get(key, x)
+                if v is not None:
+                    return v
+            return None  # if we arrive here, it means nothing matched
+
+        return _get(key, self)
+
+    def list_add(
+        self,
+        key: Union[str, TextStringObject],
+        data: PdfObject,
+        overwrite: bool = False,
+    ) -> Optional[IndirectObject]:
+        """
+        Add the data entry from the Name Tree
+
+        Args:
+            key: entry
+            data: PdfObject (it will be added to the list of objects
+            overwrite: allow to overwrite existing key
+
+        Returns:
+            matching PdfObject; None i
+        attributeEntries as a dictionary
+        """
+        try:
+            if self.indirect_reference is None:
+                raise TypeError
+            writer = self.indirect_reference.pdf
+            if not hasattr(writer, "_add_object"):
+                raise TypeError
+        except (TypeError, AttributeError):
+            raise TypeError("Object does not belong to a PdfWriter")
+        if not isinstance(key, TextStringObject):
+            key = TextStringObject(key)
+
+        def _update_limits(
+            obj: DictionaryObject,
+            lo: Optional[Union[str, TextStringObject]],
+            hi: Optional[Union[str, TextStringObject]],
+        ) -> bool:
+            if "/Limits" not in obj:
+                return False
+            a = cast("ArrayObject", obj["/Limits"])
+            if lo is not None and lo < a[0]:
+                if not isinstance(lo, TextStringObject):
+                    lo = TextStringObject(lo)
+                a[0] = lo
+                return True
+            if hi is not None and hi > a[0]:
+                if not isinstance(hi, TextStringObject):
+                    lo = TextStringObject(hi)
+                a[1] = hi
+                return True
+            return False
+
+        def _add_in(
+            o: Optional[PdfObject], appb: bool = True, app: bool = True
+        ) -> Optional[PdfObject]:
+            nonlocal overwrite, writer, key, data
+            if o is None:
+                return None
+            o = cast(DictionaryObject, o)
+            if "/Names" in o:
+                _l = cast(ArrayObject, o["/Names"])
+                if len(_l) > 0:
+                    li = o.get("/Limits", [_l[0], _l[-2]])
+                    if not appb and key < li[0]:
+                        return None
+                    if not app and key > li[1]:
+                        return None
+                i = 0
+                while i < len(_l):
+                    if _l[i] == key:
+                        d = _l[i + 1]
+                        if not overwrite:
+                            return d
+                        if isinstance(d, IndirectObject):
+                            d.replace_object(data)
+                        else:  # pragma: no cover
+                            # should not occur iaw pdf spec
+                            _l[i + 1] = data
+                        return _l[i + 1]
+                    elif key < _l[i]:
+                        _l.insert(i, key)
+                        _l.insert(i + 1, writer._add_object(data))
+                        _update_limits(o, key, None)
+                        return _l[i + 1]
+                    i += 2
+                if app:
+                    _l.append(key)
+                    _l.append(writer._add_object(data))
+                    _update_limits(o, key, None)
+                    return _l[-1]
+                return None
+            else:  # kids
+                ar = cast(ArrayObject, o["/Kids"])
+                for x in ar:
+                    r = _add_in(x, x == ar[0], x == ar[-1])
+                    if r:
+                        _update_limits(o, key, key)
+                        return r
+                return None
+
+        o = _add_in(self, True, True)
+        return o.indirect_reference if o is not None else None
+
+
+PREFERED_ATTACHMENT = "/DOS"
+
+
+def get_from_file_specification(_a: DictionaryObject) -> PdfObject:
+    return (
+        _a.get("/UF")
+        or _a.get("/F")
+        or _a.get(PREFERED_ATTACHMENT)
+        or _a.get("/DOS")
+        or _a.get("/Unix")
+        or _a.get("/Mac")
+        or DictionaryObject()
+    )
+
+
+class AttachmentBytesDictionary(Mapping[str, AttachmentBytes]):
+    """
+    Dict[str, AttachmentBytes]
+    Ease access  to Dictionary of Object
+    """
+
+    root: Optional[NameTree]
+    names: List[str]
+
+    def __init__(
+        self, root: Optional[Union[NameTree, DictionaryObject]] = None
+    ) -> None:
+        # super().__init__(self)
+        if isinstance(root, IndirectObject):
+            root = cast(DictionaryObject, root.get_object())
+        if root is not None:
+            self.root = root if isinstance(root, NameTree) else NameTree(root)
+            self.names = list(self.root.list_keys())
+        else:
+            self.root = None
+            self.names = []
+
+    def keys(self) -> List[str]:  # type: ignore[override]
+        return self.names
+
+    def __len__(self) -> int:
+        return len(self.names)
+
+    def __iter__(self) -> Iterator[str]:  # type: ignore
+        yield from self.names
+
+    def items(self) -> Iterable[Tuple[str, AttachmentBytes]]:  # type: ignore[override]
+        if self.root is None:
+            return []
+        else:
+            for k, v in self.root.list_items().items():
+                if len(v) > 1:
+                    logger_warning(
+                        "Unexpected amout of entries in attachments,"
+                        "please report"
+                        "and share the file for analysis with pypdf dev team",
+                        __name__,
+                    )
+                yield (k, AttachmentBytes(cast(DictionaryObject, v[0].get_object())))
+
+    def __getitem__(self, k: str) -> AttachmentBytes:
+        if k not in self.names:
+            raise KeyError(f"KeyError: {k}")
+        if self.root is None:
+            raise ValueError("Empty Object")
+        v = self.root.list_get(k)
+        if v is None:
+            raise KeyError(f"KeyError: {k}")
+        return AttachmentBytes(cast(DictionaryObject, v.get_object()))
+
+    def __repr__(self) -> str:
+        return "{ " + ", ".join(["'" + x + "': ..." for x in self.names]) + "}"
 
 
 class Destination(TreeObject):

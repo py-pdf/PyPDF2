@@ -76,6 +76,9 @@ class PdfWriterProtocol(Protocol):  # deprecated
     def _add_object(self, obj: Any) -> Any:
         ...
 
+    def _replace_object(self, indirect_reference: Any, obj: Any) -> Any:
+        ...
+
     @property
     def pages(self) -> List[Any]:
         ...

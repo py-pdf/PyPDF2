@@ -1297,8 +1297,8 @@ def test_attachments():
     reader = PdfReader(b)
     b = None
     assert reader.attachments == {}
-    assert reader._list_attachments() == []
-    assert reader._get_attachments() == {}
+    # assert reader._list_attachments() == []
+    # assert reader._get_attachments() == {}
     to_add = [
         ("foobar.txt", b"foobarcontent"),
         ("foobar2.txt", b"foobarcontent2"),
@@ -1313,25 +1313,52 @@ def test_attachments():
     reader = PdfReader(b)
     b = None
     assert sorted(reader.attachments.keys()) == sorted({name for name, _ in to_add})
-    assert str(reader.attachments) == "LazyDict(keys=['foobar.txt', 'foobar2.txt'])"
-    assert reader._list_attachments() == [name for name, _ in to_add]
+    assert dict(reader.attachments.items()) == {
+        "foobar.txt": b"foobarcontent",
+        "foobar2.txt": b"2nd_foobarcontent",
+    }
+    writer.add_attachment("foobar2.txt", b"overwrite_ignored", overwrite=False)
+    assert dict(reader.attachments.items()) == {
+        "foobar.txt": b"foobarcontent",
+        "foobar2.txt": b"2nd_foobarcontent",
+    }
+    assert dict(writer.attachments.items()) == {
+        "foobar.txt": b"foobarcontent",
+        "foobar2.txt": b"2nd_foobarcontent",
+    }
+    # _l = list({name for name, _ in to_add})
+    # _l.sort()
+    # assert reader._list_attachments() == _l
+    # assert writer._list_attachments() == _l
 
     # We've added the same key twice - hence only 2 and not 3:
-    att = reader._get_attachments()
-    assert len(att) == 2  # we have 2 keys, but 3 attachments!
+    # att = reader._get_attachments()
+    # assert len(att) == 2
 
     # The content for foobar.txt is clear and just a single value:
-    assert att["foobar.txt"] == b"foobarcontent"
+    # assert att["foobar.txt"] == b"foobarcontent"
+
+    # Not applicable for writer
+    # att = writer._get_attachments()
+    # assert len(att) == 2  # we have 2 keys only
+    # assert att["foobar.txt"] == b"foobarcontent"
 
     # The content for foobar2.txt is a list!
-    att = reader._get_attachments("foobar2.txt")
-    assert len(att) == 1
-    assert att["foobar2.txt"] == [b"foobarcontent2", b"2nd_foobarcontent"]
+    # att = reader._get_attachments("foobar2.txt")
+    # assert len(att) == 1
+    # assert att["foobar2.txt"] == [b"2nd_foobarcontent"]
+
+    # The content for foobar2.txt is a list!
+    # att = writer._get_attachments("foobar2.txt")
+    # assert len(att) == 1
+    # assert att["foobar2.txt"] == [b"2nd_foobarcontent"]
 
     # Let's do both cases with the public interface:
-    assert reader.attachments["foobar.txt"][0] == b"foobarcontent"
-    assert reader.attachments["foobar2.txt"][0] == b"foobarcontent2"
-    assert reader.attachments["foobar2.txt"][1] == b"2nd_foobarcontent"
+    assert reader.attachments["foobar.txt"] == b"foobarcontent"
+    assert reader.attachments["foobar2.txt"] == b"2nd_foobarcontent"
+
+    assert writer.attachments["foobar.txt"] == b"foobarcontent"
+    assert writer.attachments["foobar2.txt"] == b"2nd_foobarcontent"
 
 
 @pytest.mark.enable_socket()

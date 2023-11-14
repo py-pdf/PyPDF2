@@ -39,9 +39,7 @@ from typing import (
     Callable,
     Dict,
     Iterable,
-    Iterator,
     List,
-    Mapping,
     Optional,
     Tuple,
     Union,
@@ -87,6 +85,7 @@ from .errors import (
 )
 from .generic import (
     ArrayObject,
+    AttachmentBytesDictionary,
     BooleanObject,
     ContentStream,
     DecodedStreamObject,
@@ -98,6 +97,7 @@ from .generic import (
     FloatObject,
     IndirectObject,
     NameObject,
+    NameTree,
     NullObject,
     NumberObject,
     PdfObject,
@@ -2207,107 +2207,50 @@ class PdfReader:
         interim[NameObject("/T")] = TextStringObject(name)
         return interim
 
+    def _get_embedded_files_root(self) -> Optional[NameTree]:
+        """
+        Returns the EmbeddedFiles root as a NameTree Object
+        if the root does not exists, return None
+        """
+        catalog = cast(DictionaryObject, self.trailer["/Root"])
+        if "/Names" not in catalog:
+            return None
+        ef = cast(DictionaryObject, catalog["/Names"]).get("/EmbeddedFiles", None)
+        if ef is None:
+            return None
+        efo = ef.get_object()
+        # not for reader
+        """
+            if not isinstance(efo,NameTree):
+            if isinstance(ef,IndirectObject):
+                ef.replace_object(efo)
+            else:
+                cast(DictionaryObject,catalog["/Names"])[
+                    NameObject("/EmbeddedFiles")] = NameTree(efo)
+        """
+        return NameTree(efo)
+
     @property
-    def attachments(self) -> Mapping[str, List[bytes]]:
-        return LazyDict(
-            {
-                name: (self._get_attachment_list, name)
-                for name in self._list_attachments()
-            }
-        )
-
-    def _list_attachments(self) -> List[str]:
+    def attachments_names(self) -> List[str]:
         """
-        Retrieves the list of filenames of file attachments.
-
         Returns:
-            list of filenames
+            List of names
         """
-        catalog = cast(DictionaryObject, self.trailer["/Root"])
-        # From the catalog get the embedded file names
-        try:
-            filenames = cast(
-                ArrayObject,
-                cast(
-                    DictionaryObject,
-                    cast(DictionaryObject, catalog["/Names"])["/EmbeddedFiles"],
-                )["/Names"],
-            )
-        except KeyError:
-            return []
-        attachments_names = [f for f in filenames if isinstance(f, str)]
-        return attachments_names
+        return self.attachments.keys()
 
-    def _get_attachment_list(self, name: str) -> List[bytes]:
-        out = self._get_attachments(name)[name]
-        if isinstance(out, list):
-            return out
-        return [out]
-
-    def _get_attachments(
-        self, filename: Optional[str] = None
-    ) -> Dict[str, Union[bytes, List[bytes]]]:
+    @property
+    def attachments(self) -> AttachmentBytesDictionary:
         """
-        Retrieves all or selected file attachments of the PDF as a dictionary of file names
-        and the file data as a bytestring.
-
-        Args:
-            filename: If filename is None, then a dictionary of all attachments
-                will be returned, where the key is the filename and the value
-                is the content. Otherwise, a dictionary with just a single key
-                - the filename - and its content will be returned.
-
+        extracts the /EF entries as bytes from the embedded files
         Returns:
-            dictionary of filename -> Union[bytestring or List[ByteString]]
-            if the filename exists multiple times a List of the different version will be provided
+            Dictionary with the filenames as keys and the file content as bytes,
+            extra data cah be accessed with Attachmentbytes extra properties(.name,
+            .list_rf_names(), .get_embeddedfile(), .all_files)
+
+        Note:
+            If you want to access /RF
         """
-        catalog = cast(DictionaryObject, self.trailer["/Root"])
-        # From the catalog get the embedded file names
-        try:
-            filenames = cast(
-                ArrayObject,
-                cast(
-                    DictionaryObject,
-                    cast(DictionaryObject, catalog["/Names"])["/EmbeddedFiles"],
-                )["/Names"],
-            )
-        except KeyError:
-            return {}
-        attachments: Dict[str, Union[bytes, List[bytes]]] = {}
-        # Loop through attachments
-        for i in range(len(filenames)):
-            f = filenames[i]
-            if isinstance(f, str):
-                if filename is not None and f != filename:
-                    continue
-                name = f
-                f_dict = filenames[i + 1].get_object()
-                f_data = f_dict["/EF"]["/F"].get_data()
-                if name in attachments:
-                    if not isinstance(attachments[name], list):
-                        attachments[name] = [attachments[name]]  # type:ignore
-                    attachments[name].append(f_data)  # type:ignore
-                else:
-                    attachments[name] = f_data
-        return attachments
-
-
-class LazyDict(Mapping):
-    def __init__(self, *args: Any, **kw: Any) -> None:
-        self._raw_dict = dict(*args, **kw)
-
-    def __getitem__(self, key: str) -> Any:
-        func, arg = self._raw_dict.__getitem__(key)
-        return func(arg)
-
-    def __iter__(self) -> Iterator[Any]:
-        return iter(self._raw_dict)
-
-    def __len__(self) -> int:
-        return len(self._raw_dict)
-
-    def __str__(self) -> str:
-        return f"LazyDict(keys={list(self.keys())})"
+        return AttachmentBytesDictionary(self._get_embedded_files_root())
 
 
 class PdfFileReader(PdfReader):  # deprecated
