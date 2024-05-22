@@ -1,5 +1,4 @@
 """Test the pypdf.generic module."""
-
 from copy import deepcopy
 from io import BytesIO
 from pathlib import Path
@@ -180,64 +179,79 @@ def test_read_string_from_stream_excape_digit2():
     assert read_string_from_stream(stream) == "hello \x01\x02\x03\x04"
 
 
-def test_name_object(caplog):
+@pytest.mark.filterwarnings("ignore::DeprecationWarning")
+def test_deprecated_name_object():
+    b = BytesIO()
+    NameObject("wrong").write_to_stream(b)
+    assert b.getvalue() == b"wrong"
+
+
+def test_name_object():
     stream = BytesIO(b"x")
     with pytest.raises(PdfReadError) as exc:
         NameObject.read_from_stream(stream, None)
     assert exc.value.args[0] == "name read error"
-    assert (
-        NameObject.read_from_stream(
-            BytesIO(b"/A;Name_With-Various***Characters?"), None
-        )
-        == "/A;Name_With-Various***Characters?"
-    )
-    assert (
-        NameObject.read_from_stream(BytesIO(b"/paired#28#29parentheses"), None)
-        == "/paired()parentheses"
-    )
-    assert NameObject.read_from_stream(BytesIO(b"/A#42"), None) == "/AB"
 
-    assert (
-        NameObject.read_from_stream(
-            BytesIO(b"/#f1j#d4#aa#0c#ce#87#b4#b3#b0#23J#86#fe#2a#b2jYJ#94"),
-            ReaderDummy(),
-        )
-        == "/ñjÔª\x0cÎ\x87´³°#J\x86þ*²jYJ\x94"
-    )
-
-    assert (NameObject.read_from_stream(BytesIO(b"/#JA#231f"), None)) == "/#JA#1f"
-
-    assert (
-        NameObject.read_from_stream(
-            BytesIO(b"/#e4#bd#a0#e5#a5#bd#e4#b8#96#e7#95#8c"), None
-        )
-    ) == "/你好世界"
-
-    # to test latin-1 aka stdencoding
-    assert (
-        NameObject.read_from_stream(BytesIO(b"/DocuSign\xae"), None)
-    ) == "/DocuSign®"
-
-    # test write
-    b = BytesIO()
-    NameObject("/hello").write_to_stream(b)
-    assert bytes(b.getbuffer()) == b"/hello"
-
-    caplog.clear()
     b = BytesIO()
     with pytest.raises(DeprecationWarning):
         NameObject("hello").write_to_stream(b)
 
-    caplog.clear()
-    b = BytesIO()
-    NameObject("/DIJMAC+Arial Black#1").write_to_stream(b)
-    assert bytes(b.getbuffer()) == b"/DIJMAC+Arial#20Black#231"
-    assert caplog.text == ""
+    for binary, value, binary_pypdf in (
+        # ISO/DIS 32000-2 Table 4: Examples of literal names
+        (b"/Name1", "Name1", None),
+        (b"/ASomewhatLongerName", "ASomewhatLongerName", None),
+        (
+            b"/A;Name_With-Various***Characters?",
+            "A;Name_With-Various***Characters?",
+            None,
+        ),
+        (b"/1.2", "1.2", None),
+        (b"/$$", "$$", None),
+        (b"/@pattern", "@pattern", None),
+        (b"/.notdef", ".notdef", None),
+        (b"/Lime#20Green", "Lime Green", None),
+        (b"/paired#28#29parentheses", "paired()parentheses", None),
+        (b"/The_Key_of_F#23_Minor", "The_Key_of_F#_Minor", None),
+        (b"/A#42", "AB", b"/AB"),
+        # misc tests
+        (
+            b"/#f1j#d4#aa#0c#ce#87#b4#b3#b0#23J#86#fe#2a#b2jYJ#94",
+            "ñjÔª\x0cÎ\x87´³°#J\x86þ*²jYJ\x94",
+            b"/#F1j#D4#AA#0C#CE#87#B4#B3#B0#23J#86#FE*#B2jYJ#94",
+        ),
+        (b"/#JA#231f", "#JA#1f", b"/#23JA#231f"),
+        (b"/DocuSign\xae", "DocuSign®", b"/DocuSign#AE"),
+        (b"/DocuSign\xc2\xae", "DocuSign®", b"/DocuSign#C2#AE"),
+        (b"/DIJMAC+Arial#20Black#231", "DIJMAC+Arial Black#1", None),
+        (
+            b"/#e4#bd#a0#e5#a5#bd#e4#b8#96#e7#95#8c",
+            "你好世界",
+            b"/#E4#BD#A0#E5#A5#BD#E4#B8#96#E7#95#8C",
+        ),
+        (b"/#E4#BD#A0#E5#A5#BD#E4#B8#96#E7#95#8C#20#28#25#29", "你好世界 (%)", None),
+        (  # try all allowed values
+            b'/#01#02#03#04#05#06#07#08#09#0A#0B#0C#0D#0E#0F#10#11#12#13#14#15#16#17#18#19#1A#1B#1C#1D#1E#1F#20!"#23$#2'
+            rb"5&'#28#29*+,-.#2F0123456789:;#3C=#3E?@ABCDEFGHIJKLMNOPQRSTUVWXYZ#5B\#5D^_`abcdefghijklmnopqrstuvwxyz#7B|"
+            b"#7D~#7F#80#81#82#83#84#85#86#87#88#89#8A#8B#8C#8D#8E#8F#90#91#92#93#94#95#96#97#98#99#9A#9B#9C#9D#9E#9F#A"
+            b"0#A1#A2#A3#A4#A5#A6#A7#A8#A9#AA#AB#AC#AD#AE#AF#B0#B1#B2#B3#B4#B5#B6#B7#B8#B9#BA#BB#BC#BD#BE#BF#C0#C1#C2#C"
+            b"3#C4#C5#C6#C7#C8#C9#CA#CB#CC#CD#CE#CF#D0#D1#D2#D3#D4#D5#D6#D7#D8#D9#DA#DB#DC#DD#DE#DF#E0#E1#E2#E3#E4#E5#E"
+            b"6#E7#E8#E9#EA#EB#EC#ED#EE#EF#F0#F1#F2#F3#F4#F5#F6#F7#F8#F9#FA#FB#FC#FD#FE#FF",
+            bytes(range(1, 0x100)).decode("latin1"),
+            None,
+        ),
+        (b"/\x80\x02\x03", "\x80\x02\x03", b"/#80#02#03"),
+    ):
+        name = NameObject.read_from_stream(BytesIO(binary), None)
+        assert name == f"/{value}"
+        bio = BytesIO()
+        name.write_to_stream(bio)
+        if binary_pypdf:
+            assert bio.getvalue() == binary_pypdf
+        else:
+            assert bio.getvalue() == binary
 
-    b = BytesIO()
-    NameObject("/你好世界 (%)").write_to_stream(b)
-    assert bytes(b.getbuffer()) == b"/#E4#BD#A0#E5#A5#BD#E4#B8#96#E7#95#8C#20#28#25#29"
-    assert caplog.text == ""
+    with pytest.raises(KeyError):
+        NameObject("/\0").write_to_stream(BytesIO())
 
 
 def test_destination_fit_r():
