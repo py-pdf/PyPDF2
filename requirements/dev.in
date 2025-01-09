@@ -1,7 +1,6 @@
-black
 pillow
 pip-tools
-pre-commit<2.18.0
+pre-commit
 pytest-cov
 flit
 wheel

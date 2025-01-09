@@ -1,7 +1,7 @@
 # pre-commit run --all-files
 repos:
 -   repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.1.0
+    rev: v5.0.0
     hooks:
     -   id: check-ast
     -   id: check-byte-order-marker
@@ -18,40 +18,21 @@ repos:
     -   id: check-added-large-files
         args: ['--maxkb=1000']
 
--   repo: https://github.com/psf/black
-    rev: 23.3.0
-    hooks:
-    -   id: black
-        args: [--target-version, py37]
-
--   repo: https://github.com/asottile/blacken-docs
-    rev: 1.14.0
-    hooks:
-    -   id: blacken-docs
-        additional_dependencies: [black==22.1.0]
-        exclude: "docs/user/robustness.md"
-
 -   repo: https://github.com/charliermarsh/ruff-pre-commit
-    rev: v0.1.9
+    rev: v0.7.0
     hooks:
     -   id: ruff
         args: ['--fix']
 
 -   repo: https://github.com/asottile/pyupgrade
-    rev: v3.3.2
+    rev: v3.19.0
     hooks:
     -   id: pyupgrade
-        args: [--py37-plus]
-
--   repo: https://github.com/pycqa/flake8
-    rev: 5.0.4
-    hooks:
-    -   id: flake8
-        args: ["--ignore", "E,W,F"]
+        args: [--py38-plus]
 
 -   repo: https://github.com/pre-commit/mirrors-mypy
-    rev: 'v1.4.0'
+    rev: 'v1.13.0'
     hooks:
       - id: mypy
-        additional_dependencies: [types-Pillow==10.0.0.2]
+        additional_dependencies: [types-Pillow==10.2.0.20240822]
         files: ^pypdf/.*

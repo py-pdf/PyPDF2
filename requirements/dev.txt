@@ -4,98 +4,83 @@
 #
 #    pip-compile requirements/dev.in
 #
-black==24.3.0
-    # via -r dev.in
-build==1.0.3
+build==1.2.2.post1
     # via pip-tools
-certifi==2023.11.17
+certifi==2024.8.30
     # via requests
-cfgv==3.3.1
+cfgv==3.4.0
     # via pre-commit
-charset-normalizer==3.3.2
+charset-normalizer==3.4.0
     # via requests
 click==8.1.7
-    # via
-    #   black
-    #   pip-tools
-coverage[toml]==7.2.7
+    # via pip-tools
+coverage[toml]==7.6.1
     # via pytest-cov
-distlib==0.3.8
+distlib==0.3.9
     # via virtualenv
 docutils==0.20.1
     # via flit
-exceptiongroup==1.2.0
+exceptiongroup==1.2.2
     # via pytest
-filelock==3.12.2
+filelock==3.16.1
     # via virtualenv
 flit==3.9.0
-    # via -r dev.in
+    # via -r requirements/dev.in
 flit-core==3.9.0
     # via flit
-identify==2.5.24
+identify==2.6.1
     # via pre-commit
-idna==3.6
+idna==3.10
     # via requests
-importlib-metadata==6.7.0
+importlib-metadata==8.5.0
     # via build
 iniconfig==2.0.0
     # via pytest
-mypy-extensions==1.0.0
-    # via black
-nodeenv==1.8.0
+nodeenv==1.9.1
     # via pre-commit
-packaging==23.2
+packaging==24.1
     # via
-    #   black
     #   build
     #   pytest
-pathspec==0.11.2
-    # via black
-pillow==9.5.0
-    # via -r dev.in
-pip-tools==6.14.0
-    # via -r dev.in
-platformdirs==4.0.0
-    # via
-    #   black
-    #   virtualenv
-pluggy==1.2.0
+pillow==10.4.0
+    # via -r requirements/dev.in
+pip-tools==7.4.1
+    # via -r requirements/dev.in
+platformdirs==4.3.6
+    # via virtualenv
+pluggy==1.5.0
     # via pytest
-pre-commit==2.17.0
-    # via -r dev.in
-pyproject-hooks==1.0.0
-    # via build
-pytest==7.4.3
-    # via pytest-cov
-pytest-cov==4.1.0
-    # via -r dev.in
-pyyaml==6.0.1
-    # via pre-commit
-requests==2.31.0
-    # via flit
-toml==0.10.2
-    # via pre-commit
-tomli==2.0.1
+pre-commit==3.5.0
+    # via -r requirements/dev.in
+pyproject-hooks==1.2.0
     # via
-    #   black
+    #   build
+    #   pip-tools
+pytest==8.3.3
+    # via pytest-cov
+pytest-cov==5.0.0
+    # via -r requirements/dev.in
+pyyaml==6.0.2
+    # via pre-commit
+requests==2.32.3
+    # via flit
+tomli==2.0.2
+    # via
     #   build
     #   coverage
     #   pip-tools
-    #   pyproject-hooks
     #   pytest
 tomli-w==1.0.0
     # via flit
-typing-extensions==4.7.1
-    # via black
-urllib3==2.0.7
+urllib3==2.2.3
     # via requests
-virtualenv==20.25.0
+virtualenv==20.27.0
     # via pre-commit
-wheel==0.42.0
+wheel==0.44.0
     # via
-    #   -r dev.in
+    #   -r requirements/dev.in
     #   pip-tools
-zipp==3.15.0
+zipp==3.20.2
     # via importlib-metadata
 
 # The following packages are considered to be unsafe in a requirements file:
