@@ -4,19 +4,26 @@ Anything related to Extensible Metadata Platform (XMP) metadata.
 https://en.wikipedia.org/wiki/Extensible_Metadata_Platform
 """
 
+# Remove once Python 3.8 support is dropped
+from __future__ import annotations
+
 import datetime
 import decimal
 import re
-from typing import (
-    Any,
-    Callable,
-    Dict,
-    Iterator,
-    List,
-    Optional,
-    TypeVar,
-    Union,
-)
+
+from __future__ import annotations
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+    from typing import (
+        Any,
+        Dict,
+        Iterator,
+        List,
+        Optional,
+        TypeVar,
+        Union,
+    )
 from xml.dom.minidom import Document, parseString
 from xml.dom.minidom import Element as XmlElement
 from xml.parsers.expat import ExpatError
@@ -107,8 +114,8 @@ def _converter_date(value: str) -> datetime.datetime:
 
 def _getter_bag(
     namespace: str, name: str
-) -> Callable[["XmpInformation"], Optional[List[str]]]:
-    def get(self: "XmpInformation") -> Optional[List[str]]:
+) -> Callable[[XmpInformation], Optional[List[str]]]:
+    def get(self: XmpInformation) -> Optional[List[str]]:
         cached = self.cache.get(namespace, {}).get(name)
         if cached:
             return cached
@@ -129,8 +136,8 @@ def _getter_bag(
 
 def _getter_seq(
     namespace: str, name: str, converter: Callable[[Any], Any] = _identity
-) -> Callable[["XmpInformation"], Optional[List[Any]]]:
-    def get(self: "XmpInformation") -> Optional[List[Any]]:
+) -> Callable[[XmpInformation], Optional[List[Any]]]:
+    def get(self: XmpInformation) -> Optional[List[Any]]:
         cached = self.cache.get(namespace, {}).get(name)
         if cached:
             return cached
@@ -155,8 +162,8 @@ def _getter_seq(
 
 def _getter_langalt(
     namespace: str, name: str
-) -> Callable[["XmpInformation"], Optional[Dict[Any, Any]]]:
-    def get(self: "XmpInformation") -> Optional[Dict[Any, Any]]:
+) -> Callable[[XmpInformation], Optional[Dict[Any, Any]]]:
+    def get(self: XmpInformation) -> Optional[Dict[Any, Any]]:
         cached = self.cache.get(namespace, {}).get(name)
         if cached:
             return cached
@@ -179,8 +186,8 @@ def _getter_langalt(
 
 def _getter_single(
     namespace: str, name: str, converter: Callable[[str], Any] = _identity
-) -> Callable[["XmpInformation"], Optional[Any]]:
-    def get(self: "XmpInformation") -> Optional[Any]:
+) -> Callable[[XmpInformation], Optional[Any]]:
+    def get(self: XmpInformation) -> Optional[Any]:
         cached = self.cache.get(namespace, {}).get(name)
         if cached:
             return cached
