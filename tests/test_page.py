@@ -326,6 +326,20 @@ def test_page_properties():
     assert page.bleedbox == RectangleObject((0, 1, 100, 101))
 
 
+@pytest.mark.parametrize("key", [PG.MEDIABOX, PG.CROPBOX])
+@pytest.mark.parametrize("values", [
+    [0, 0, 612, 792, 0, 0, 612, 792],
+    (0, 0, 612, 792, 0, 0, 612, 792),
+    [0, 0, 612, 792, 0, 0, 612, 792, 0, 0],
+    (0, 0, 612, 792, 0, 0, 612, 792, 0, 0),
+])
+def test_page_handles_long_media_and_crop_box_iss_2991(key: str, values: List[float] | Tuple[float, ...]):
+    reader = PdfReader(RESOURCE_ROOT / "crazyones.pdf")
+    page = reader.pages[0]
+    page[NameObject(key)] = ArrayObject(values)
+    assert page.mediabox == RectangleObject((0, 0, 612, 792))
+
+
 def test_page_rotation():
     reader = PdfReader(RESOURCE_ROOT / "crazyones.pdf")
     page = reader.pages[0]

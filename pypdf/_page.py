@@ -106,7 +106,7 @@ except ImportError:
 MERGE_CROP_BOX = "cropbox"  # pypdf<=3.4.0 used 'trimbox'
 
 
-def _get_rectangle(self: Any, name: str, defaults: Iterable[str]) -> RectangleObject:
+def _get_rectangle(self: Any, name: str, defaults: Iterable[str], allow_truncate: bool) -> RectangleObject:
     retval: Union[None, RectangleObject, IndirectObject] = self.get(name)
     if isinstance(retval, RectangleObject):
         return retval
@@ -117,6 +117,13 @@ def _get_rectangle(self: Any, name: str, defaults: Iterable[str]) -> RectangleOb
                 break
     if isinstance(retval, IndirectObject):
         retval = self.pdf.get_object(retval)
+    if allow_truncate and (isinstance(retval, list) or isinstance(retval, tuple)):
+        if len(retval) != 4:
+            logger_warning(
+                f"Expected {name} to be a rectangle with 4 points, but found: {retval}",
+                __name__
+            )
+            retval = retval[:4]
     retval = RectangleObject(retval)  # type: ignore
     _set_rectangle(self, name, retval)
     return retval
@@ -131,9 +138,14 @@ def _delete_rectangle(self: Any, name: str) -> None:
     del self[name]
 
 
-def _create_rectangle_accessor(name: str, fallback: Iterable[str]) -> property:
+def _create_rectangle_accessor(name: str, fallback: Iterable[str], allow_truncate: bool = False) -> property:
+    """
+    Params:
+        allow_truncate: True to permissively truncate the value at name down to the 4 points
+        expected by RectangleObject if the value is a Tuple or List with a greater length.
+    """
     return property(
-        lambda self: _get_rectangle(self, name, fallback),
+        lambda self: _get_rectangle(self, name, fallback, allow_truncate=allow_truncate),
         lambda self, value: _set_rectangle(self, name, value),
         lambda self: _delete_rectangle(self, name),
     )
@@ -2449,12 +2461,12 @@ class PageObject(DictionaryObject):
         unembedded = fonts - embedded
         return embedded, unembedded
 
-    mediabox = _create_rectangle_accessor(PG.MEDIABOX, ())
+    mediabox = _create_rectangle_accessor(PG.MEDIABOX, (), allow_truncate=True)
     """A :class:`RectangleObject<pypdf.generic.RectangleObject>`, expressed in
     default user space units, defining the boundaries of the physical medium on
     which the page is intended to be displayed or printed."""
 
-    cropbox = _create_rectangle_accessor("/CropBox", (PG.MEDIABOX,))
+    cropbox = _create_rectangle_accessor("/CropBox", (PG.MEDIABOX,), allow_truncate=True)
     """
     A :class:`RectangleObject<pypdf.generic.RectangleObject>`, expressed in
     default user space units, defining the visible region of default user
