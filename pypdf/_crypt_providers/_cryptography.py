@@ -26,16 +26,22 @@
 # POSSIBILITY OF SUCH DAMAGE.
 
 import secrets
+from ._utils import deprecate_with_replacement
 
 from cryptography import __version__
 from cryptography.hazmat.primitives import padding
 from cryptography.hazmat.primitives.ciphers.algorithms import AES
 
 try:
-    # 43.0.0 - https://cryptography.io/en/latest/changelog/#v43-0-0
     from cryptography.hazmat.decrepit.ciphers.algorithms import ARC4
 except ImportError:
     from cryptography.hazmat.primitives.ciphers.algorithms import ARC4
+    # https://cryptography.io/en/latest/changelog/#v43-0-0
+    deprecate_with_replacement(
+            "cryptography.hazmat.primitives.ciphers.algorithms",
+            "cryptography.hazmat.decrepit.ciphers.algorithms",
+            "5.0.0"
+    )
 from cryptography.hazmat.primitives.ciphers.base import Cipher
 from cryptography.hazmat.primitives.ciphers.modes import CBC, ECB
 
