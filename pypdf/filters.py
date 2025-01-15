@@ -656,10 +656,10 @@ def decode_stream_data(stream: Any) -> bytes:
             data = FlateDecode.decode(data, params)
         elif filter_name in (FT.RUN_LENGTH_DECODE, FTA.RL):
             data = RunLengthDecode.decode(data)
-        elif filter_name == FT.CCITT_FAX_DECODE:
+        elif filter_name in (FT.CCITT_FAX_DECODE, FTA.CCF):
             height = stream.get(IA.HEIGHT, ())
             data = CCITTFaxDecode.decode(data, params, height)
-        elif filter_name == FT.DCT_DECODE:
+        elif filter_name in (FT.DCT_DECODE, FTA.DCT):
             data = DCTDecode.decode(data)
         elif filter_name == FT.JPX_DECODE:
             data = JPXDecode.decode(data)
