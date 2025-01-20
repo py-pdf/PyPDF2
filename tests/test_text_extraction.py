@@ -11,7 +11,7 @@ import pytest
 
 from pypdf import PdfReader, mult
 from pypdf._text_extraction import set_custom_rtl
-from pypdf.errors import ParseError
+from pypdf.errors import ParseError, PdfReadError
 
 from . import get_data_from_url
 
@@ -165,7 +165,7 @@ def test_layout_mode_indirect_sequence_font_widths():
     # Cover the situation where the sequence for font widths is an IndirectObject
     # ref https://github.com/py-pdf/pypdf/pull/2788
     url = "https://github.com/user-attachments/files/16491621/2788_example.pdf"
-    name ="2788_example.pdf"
+    name = "2788_example.pdf"
     reader = PdfReader(BytesIO(get_data_from_url(url, name=name)))
     assert reader.pages[0].extract_text(extraction_mode="layout") == ""
     url = "https://github.com/user-attachments/files/16491619/2788_example_malformed.pdf"
@@ -175,8 +175,10 @@ def test_layout_mode_indirect_sequence_font_widths():
         reader.pages[0].extract_text(extraction_mode="layout")
         assert str(exc.value).startswith("Invalid font width definition")
 
+
 def dummy_visitor_text(text, ctm, tm, fd, fs):
     pass
+
 
 @patch("pypdf._page.logger_warning")
 def test_layout_mode_warnings(mock_logger_warning):
@@ -272,6 +274,29 @@ def test_infinite_loop_arrays():
     page = reader.pages[0]
     extracted = page.extract_text()
     assert "RNA structure comparison" in extracted
+
+
+@pytest.mark.enable_socket
+def test_content_stream_is_dictionary_object(caplog):
+    """Tests for #2995."""
+    url = "https://github.com/user-attachments/files/18049322/6fa5fd46-5f98-4a67-800d-5e2362b0164f.pdf"
+    name = "iss2995.pdf"
+    data = get_data_from_url(url, name=name)
+
+    reader = PdfReader(BytesIO(data))
+    page = reader.pages[0]
+    assert "\nYours faithfully   \n" in page.extract_text()
+    assert "Expected StreamObject, got DictionaryObject instead. Data might be wrong." in caplog.text
+    caplog.clear()
+
+    reader = PdfReader(BytesIO(data), strict=True)
+    page = reader.pages[0]
+    with pytest.raises(PdfReadError) as exception:
+        page.extract_text()
+    assert (
+        "Invalid Elementary Object starting with b\\'\\\\x18\\' @3557: b\\'ateDecode/Length 629\\\\x18ck["
+        in exception.value.args[0]
+    )
 
 
 @pytest.mark.enable_socket

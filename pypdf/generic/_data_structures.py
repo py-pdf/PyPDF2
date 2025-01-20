@@ -1178,7 +1178,18 @@ class ContentStream(DecodedStreamObject):
             if isinstance(stream, ArrayObject):
                 data = b""
                 for s in stream:
-                    data += s.get_object().get_data()
+                    s_resolved = s.get_object()
+                    if isinstance(s_resolved, NullObject):
+                        continue
+                    if not isinstance(s_resolved, StreamObject):
+                        # No need to emit an exception here for now - the PDF structure
+                        # seems to already be broken beforehand in these cases.
+                        logger_warning(
+                            f"Expected StreamObject, got {type(s_resolved).__name__} instead. Data might be wrong.",
+                            __name__
+                        )
+                    else:
+                        data += s_resolved.get_data()
                     if len(data) == 0 or data[-1] != b"\n":
                         data += b"\n"
                 super().set_data(bytes(data))
