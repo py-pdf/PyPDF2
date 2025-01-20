@@ -27,7 +27,6 @@ from .test_encryption import HAS_AES
 from .test_images import image_similarity
 
 filter_inputs = (
-    # "", '', """""",
     string.ascii_lowercase,
     string.ascii_uppercase,
     string.ascii_letters,
@@ -76,8 +75,7 @@ def test_flatedecode_unsupported_predictor():
 def test_flate_decode_decompress_with_array_params(params):
     """FlateDecode decode() method works correctly with array parameters."""
     codec = FlateDecode()
-    s = ""
-    s = s.encode()
+    s = b""
     encoded = codec.encode(s)
     with pytest.raises(DeprecationError):
         assert codec.decode(encoded, params) == s
@@ -169,7 +167,7 @@ def test_ascii85decode_five_zero_bytes():
     """
     ASCII85Decode handles the special case of five zero bytes correctly.
 
-    From ISO 32000 (2008) §7.4.3:
+    ISO 32000-1:2008 §7.4.3:
 
     «As a special case, if all five bytes are 0, they shall be represented by
     the character with code 122 (z) instead of by five exclamation points
@@ -355,13 +353,13 @@ def test_png_transparency_reverse():
     """Cf issue #1599"""
     pdf_path = RESOURCE_ROOT / "labeled-edges-center-image.pdf"
     reader = PdfReader(pdf_path)
-    _refimg = Image.open(
+    refimg = Image.open(
         BytesIO(get_data_from_url(name="labeled-edges-center-image.png"))
     )
     data = reader.pages[0].images[0]
-    _img = Image.open(BytesIO(data.data))
+    img = Image.open(BytesIO(data.data))
     assert ".jp2" in data.name
-    # assert list(img.getdata()) == list(refimg.getdata())
+    assert list(img.getdata()) == list(refimg.getdata())
 
 
 @pytest.mark.enable_socket
@@ -394,7 +392,7 @@ def test_tiff_predictor():
 
 @pytest.mark.enable_socket
 def test_rgba():
-    """Decode rgb with transparency"""
+    """Decode RGB with transparency"""
     with PILContext():
         reader = PdfReader(BytesIO(get_data_from_url(name="tika-972174.pdf")))
         data = reader.pages[0].images[0]
@@ -407,7 +405,7 @@ def test_rgba():
 
 @pytest.mark.enable_socket
 def test_cmyk():
-    """Decode cmyk"""
+    """Decode CMYK"""
     # JPEG compression
     try:
         from Crypto.Cipher import AES  # noqa: F401
@@ -475,7 +473,7 @@ def test_index_lookup():
     assert data.image.mode == "RGB"
     assert image_similarity(data.image, refimg) > 0.999
     # indexed CMYK images
-    # currently with a  TODO as we convert to RBG the palette
+    # currently with a TODO as we convert to RGB the palette
     reader = PdfReader(BytesIO(get_data_from_url(name="tika-972174.pdf")))
     refimg = Image.open(BytesIO(get_data_from_url(name="usa.png")))
     data = reader.pages[0].images["/Im3"]
