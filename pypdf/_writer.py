@@ -2475,9 +2475,12 @@ class PdfWriter(PdfDocCommon):
         # destination
         if to_add.get("/Subtype") == "/Link" and "/Dest" in to_add:
             tmp = cast(Dict[Any, Any], to_add[NameObject("/Dest")])
+            # Changes target_page_index an integer to target_page an IndirectObject
+            pages_obj = cast(Dict[str, Any], self.get_object(self._pages))
+            target_page = pages_obj[PA.KIDS][tmp["target_page_index"]]
             dest = Destination(
                 NameObject("/LinkName"),
-                tmp["target_page_index"],
+                target_page,
                 Fit(
                     fit_type=tmp["fit"], fit_args=dict(tmp)["fit_args"]
                 ),  # I have no clue why this dict-hack is necessary
