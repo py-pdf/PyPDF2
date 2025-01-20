@@ -115,3 +115,31 @@ def test_user_access_permissions__all():
     assert all_int & UserAccessPermissions.PRINT == UserAccessPermissions.PRINT
     assert all_int & UserAccessPermissions.R7 == UserAccessPermissions.R7
     assert all_int & UserAccessPermissions.R31 == UserAccessPermissions.R31
+
+
+def test_user_access_permissions__minimal():
+    minimal_permissions = UserAccessPermissions.minimal()
+
+    assert int(minimal_permissions) == 4294963392  # All reserved bits which should be one.
+
+    assert minimal_permissions & UserAccessPermissions.R1 == 0
+    assert minimal_permissions & UserAccessPermissions.R2 == 0
+    assert minimal_permissions & UserAccessPermissions.PRINT == 0
+    assert minimal_permissions & UserAccessPermissions.R7 == UserAccessPermissions.R7
+    assert minimal_permissions & UserAccessPermissions.R31 == UserAccessPermissions.R31
+
+
+def test_user_access_permissions__check():
+    all_permissions = UserAccessPermissions.all()
+    all_permissions.check()
+
+    r1_set = all_permissions | UserAccessPermissions.R1
+    with pytest.raises(ValueError, match="Invalid value for reserved bit R1."):
+        r1_set.check()
+    r2_set = all_permissions | UserAccessPermissions.R2
+    with pytest.raises(ValueError, match="Invalid value for reserved bit R2."):
+        r2_set.check()
+
+    r8_unset = UserAccessPermissions(all_permissions - UserAccessPermissions.R8)
+    with pytest.raises(ValueError, match="Invalid value for reserved bit R8."):
+        r8_unset.check()

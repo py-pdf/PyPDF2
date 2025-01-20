@@ -126,7 +126,25 @@ class UserAccessPermissions(IntFlag):
 
     @classmethod
     def all(cls) -> "UserAccessPermissions":
+        """Get full permissions value."""
         return cls((2**32 - 1) - cls.R1 - cls.R2)
+
+    @classmethod
+    def minimal(cls) -> "UserAccessPermissions":
+        """Get the minimal permissions value."""
+        result = cls(0)
+        for name, flag in cls.__members__.items():
+            if cls._is_reserved(name) and cls._is_active(name):
+                result |= flag
+        return result
+
+    def check(self) -> None:
+        """Check if the flags are valid."""
+        for name, flag in UserAccessPermissions.__members__.items():
+            if self._is_reserved(name):
+                expected = flag if self._is_active(name) else 0
+                if self & flag != expected:
+                    raise ValueError(f"Invalid value for reserved bit {name}.")
 
 
 class Resources:

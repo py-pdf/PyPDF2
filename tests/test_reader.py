@@ -774,12 +774,12 @@ def test_user_access_permissions():
     writer.encrypt(
         user_password="",
         owner_password="abc",
-        permissions_flag=UAP.PRINT | UAP.FILL_FORM_FIELDS,
+        permissions_flag=UAP.minimal() | UAP.PRINT | UAP.FILL_FORM_FIELDS,
     )
     output = BytesIO()
     writer.write(output)
     reader = PdfReader(output)
-    assert reader.user_access_permissions == (UAP.PRINT | UAP.FILL_FORM_FIELDS)
+    assert reader.user_access_permissions == (UAP.minimal() | UAP.PRINT | UAP.FILL_FORM_FIELDS)
 
     # All writer permissions.
     writer = PdfWriter(clone_from=RESOURCE_ROOT / "crazyones.pdf")

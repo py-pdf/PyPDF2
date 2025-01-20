@@ -19,6 +19,7 @@ from pypdf import (
     Transformation,
 )
 from pypdf.annotations import Link
+from pypdf.constants import UserAccessPermissions as UAP
 from pypdf.errors import PageSizeNotDefinedError, PyPdfError
 from pypdf.generic import (
     ArrayObject,
@@ -602,6 +603,42 @@ def test_encrypt(use_128bit, user_password, owner_password, pdf_file_path):
     new_text = reader.pages[0].extract_text()
     assert reader.metadata.get("/Producer") == "pypdf"
     assert new_text == orig_text
+
+
+def test_user_access_permissions():
+    # All writer permissions.
+    writer = PdfWriter(clone_from=RESOURCE_ROOT / "crazyones.pdf")
+    writer.encrypt(
+        user_password="",
+        owner_password="abc",
+        permissions_flag=UAP.all(),
+    )
+    output = BytesIO()
+    writer.write(output)
+    reader = PdfReader(output)
+    assert reader.user_access_permissions == UAP.all()
+
+    # Minimal permissions.
+    writer = PdfWriter(clone_from=RESOURCE_ROOT / "crazyones.pdf")
+    writer.encrypt(
+        user_password="",
+        owner_password="abc",
+        permissions_flag=UAP.minimal(),
+    )
+    output = BytesIO()
+    writer.write(output)
+    reader = PdfReader(output)
+    assert reader.user_access_permissions == UAP.minimal()
+
+    # Wrong permissions.
+    writer = PdfWriter(clone_from=RESOURCE_ROOT / "crazyones.pdf")
+    with pytest.raises(ValueError, match="Invalid value for reserved bit R2."):
+        writer.encrypt(
+            user_password="",
+            owner_password="abc",
+            permissions_flag=UAP.minimal() | UAP.R2,
+        )
+
 
 
 def test_add_outline_item(pdf_file_path):
