@@ -209,6 +209,9 @@ max-complexity = 54  # Recommended: 10
 "tests/*" = ["S101", "ANN001", "ANN201","D104", "S105", "S106", "D103", "B018", "B017"]
 "tests/test_workflows.py" =  ["T201"]
 
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
 [tool.ruff.lint.pylint]
 allow-magic-value-types = ["bytes", "float", "int", "str"]
 max-args = 12  # Recommended: 5
