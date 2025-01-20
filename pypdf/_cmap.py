@@ -516,6 +516,7 @@ def _type1_alternative(
     txt = txt.split(b"eexec\n")[0]  # only clear part
     txt = txt.split(b"/Encoding")[1]  # to get the encoding part
     lines = txt.replace(b"\r", b"\n").split(b"\n")
+    v = ""
     for li in lines:
         if li.startswith(b"dup"):
             words = [_w for _w in li.split(b" ") if _w != b""]
